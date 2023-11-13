@@ -12,8 +12,10 @@
 
 uint32_t lineno;
 
-void * __attribute__((optnone)) allocation_tracking_malloc(size_t len) {
+void * __attribute__((optnone)) allocation_tracking_malloc(size_t len)
+{
     if (EG(current_execute_data) &&
+        EG(current_execute_data)->func &&
         ZEND_USER_CODE(EG(current_execute_data)->func->type) &&
         EG(current_execute_data)->opline
     ) {
@@ -22,8 +24,10 @@ void * __attribute__((optnone)) allocation_tracking_malloc(size_t len) {
     return _zend_mm_alloc(zend_mm_get_heap(), len);
 }
 
-void __attribute__((optnone)) allocation_tracking_free(void *ptr) {
+void __attribute__((optnone)) allocation_tracking_free(void *ptr)
+{
     if (EG(current_execute_data) &&
+        EG(current_execute_data)->func &&
         ZEND_USER_CODE(EG(current_execute_data)->func->type) &&
         EG(current_execute_data)->opline
     ) {
@@ -32,8 +36,10 @@ void __attribute__((optnone)) allocation_tracking_free(void *ptr) {
     _zend_mm_free(zend_mm_get_heap(), ptr);
 }
 
-void * __attribute__((optnone)) allocation_tracking_realloc(void * ptr, size_t len) {
+void * __attribute__((optnone)) allocation_tracking_realloc(void * ptr, size_t len)
+{
     if (EG(current_execute_data) &&
+        EG(current_execute_data)->func &&
         ZEND_USER_CODE(EG(current_execute_data)->func->type) &&
         EG(current_execute_data)->opline
     ) {
