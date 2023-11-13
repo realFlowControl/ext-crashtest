@@ -1,0 +1,7 @@
+ARG_ENABLE('crashtest', 'crashtest support', 'no');
+
+if (PHP_CRASHTEST != 'no') {
+	AC_DEFINE('HAVE_CRASHTEST', 1, 'crashtest support enabled');
+
+	EXTENSION('crashtest', 'crashtest.c', null, '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1');
+}
