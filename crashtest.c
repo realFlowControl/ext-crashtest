@@ -10,15 +10,25 @@
 #include "php_crashtest.h"
 #include "Zend/zend_alloc.h"
 
-uint32_t lineno;
+volatile uint32_t lineno = 0;
 
+static bool has_opline(zend_execute_data *execute_data)
+{
+    return execute_data
+        && execute_data->func
+        && ZEND_USER_CODE(execute_data->func->type)
+#if CFG_STRICT_OPLINE
+#else
+        && EG(execute_data)->opline
+#endif
+    ;
+}
+
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 void * __attribute__((optnone)) allocation_tracking_malloc(size_t len)
 {
-    if (EG(current_execute_data) &&
-        EG(current_execute_data)->func &&
-        ZEND_USER_CODE(EG(current_execute_data)->func->type) &&
-        EG(current_execute_data)->opline
-    ) {
+    if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
     return _zend_mm_alloc(zend_mm_get_heap(), len);
@@ -26,11 +36,7 @@ void * __attribute__((optnone)) allocation_tracking_malloc(size_t len)
 
 void __attribute__((optnone)) allocation_tracking_free(void *ptr)
 {
-    if (EG(current_execute_data) &&
-        EG(current_execute_data)->func &&
-        ZEND_USER_CODE(EG(current_execute_data)->func->type) &&
-        EG(current_execute_data)->opline
-    ) {
+    if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
     _zend_mm_free(zend_mm_get_heap(), ptr);
@@ -38,15 +44,12 @@ void __attribute__((optnone)) allocation_tracking_free(void *ptr)
 
 void * __attribute__((optnone)) allocation_tracking_realloc(void * ptr, size_t len)
 {
-    if (EG(current_execute_data) &&
-        EG(current_execute_data)->func &&
-        ZEND_USER_CODE(EG(current_execute_data)->func->type) &&
-        EG(current_execute_data)->opline
-    ) {
+    if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
     return _zend_mm_realloc(zend_mm_get_heap(), ptr, len);
 }
+#pragma GCC pop_options
 
 PHP_RINIT_FUNCTION(crashtest)
 {
