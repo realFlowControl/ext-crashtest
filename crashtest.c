@@ -19,7 +19,7 @@ static bool has_opline(zend_execute_data *execute_data)
         && ZEND_USER_CODE(execute_data->func->type)
 #if CFG_STRICT_OPLINE
 #else
-        && EG(execute_data)->opline
+        && execute_data->opline
 #endif
     ;
 }
