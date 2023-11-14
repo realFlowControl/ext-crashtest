@@ -12,6 +12,12 @@
 
 volatile uint32_t lineno = 0;
 
+void* (*custom_malloc)(size_t) = NULL;
+void (*custom_free)(void*) =  NULL;
+void* (*custom_realloc)(void *, size_t) = NULL;
+
+zend_mm_heap* heap = NULL;
+
 static bool has_opline(zend_execute_data *execute_data)
 {
     return execute_data
@@ -26,28 +32,38 @@ static bool has_opline(zend_execute_data *execute_data)
 
 #pragma GCC push_options
 #pragma GCC optimize("O0")
-void * __attribute__((optnone)) allocation_tracking_malloc(size_t len)
+void * __attribute__((optnone)) crashtest_malloc(size_t len)
 {
     if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
-    return _zend_mm_alloc(zend_mm_get_heap(), len);
+	if (custom_malloc) {
+		return custom_malloc(len);
+	}
+    return _zend_mm_alloc(heap, len);
 }
 
-void __attribute__((optnone)) allocation_tracking_free(void *ptr)
+void __attribute__((optnone)) crashtest_free(void *ptr)
 {
     if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
-    _zend_mm_free(zend_mm_get_heap(), ptr);
+	if (custom_free) {
+		custom_free(ptr);
+		return;
+	}
+    _zend_mm_free(heap, ptr);
 }
 
-void * __attribute__((optnone)) allocation_tracking_realloc(void * ptr, size_t len)
+void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len)
 {
     if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
-    return _zend_mm_realloc(zend_mm_get_heap(), ptr, len);
+	if (custom_realloc) {
+		return custom_realloc(ptr, len);
+	}
+    return _zend_mm_realloc(heap, ptr, len);
 }
 #pragma GCC pop_options
 
@@ -57,24 +73,34 @@ PHP_RINIT_FUNCTION(crashtest)
     ZEND_TSRMLS_CACHE_UPDATE();
 #endif
 
-    zend_mm_set_custom_handlers(
-        zend_mm_get_heap(),
-        allocation_tracking_malloc,
-        allocation_tracking_free,
-        allocation_tracking_realloc
-    );
+	heap = zend_mm_get_heap();
+	if (zend_mm_is_custom_heap(heap)) {
+		zend_mm_get_custom_handlers(
+			heap,
+			&custom_malloc,
+			&custom_free,
+			&custom_realloc
+		);
+	}
+	zend_mm_set_custom_handlers(
+		heap,
+		crashtest_malloc,
+		crashtest_free,
+		crashtest_realloc
+	);
 
     return SUCCESS;
 }
 
 PHP_RSHUTDOWN_FUNCTION(crashtest)
 {
-    zend_mm_set_custom_handlers(
-        zend_mm_get_heap(),
-        NULL,
-        NULL,
-        NULL
-    );
+	zend_mm_set_custom_handlers(
+		heap,
+		NULL,
+		NULL,
+		NULL
+	);
+
     return SUCCESS;
 }
 
