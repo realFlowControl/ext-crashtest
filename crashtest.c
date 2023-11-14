@@ -1,6 +1,7 @@
 /* crashtest extension for PHP */
 
 #include <stdint.h>
+#include <string.h>
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
@@ -30,6 +31,21 @@ static bool has_opline(zend_execute_data *execute_data)
     ;
 }
 
+int crashtest_prepare_heap()
+{
+	heap = zend_mm_get_heap();
+	int custom_heap;
+	memcpy(&custom_heap, heap, sizeof(int));
+	memset(heap, ZEND_MM_CUSTOM_HEAP_NONE, sizeof(int));
+	return custom_heap;
+}
+
+void crashtest_restore_heap(int custom_heap)
+{
+	heap = zend_mm_get_heap();
+	memset(heap, custom_heap, sizeof(int));
+}
+
 #pragma GCC push_options
 #pragma GCC optimize("O0")
 void * __attribute__((optnone)) crashtest_malloc(size_t len)
@@ -37,10 +53,15 @@ void * __attribute__((optnone)) crashtest_malloc(size_t len)
     if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
+	void * ptr;
+	int custom_heap = crashtest_prepare_heap();
 	if (custom_malloc) {
-		return custom_malloc(len);
+		ptr = custom_malloc(len);
+	} else {
+		ptr = _zend_mm_alloc(heap, len);
 	}
-    return _zend_mm_alloc(heap, len);
+	crashtest_restore_heap(custom_heap);
+	return ptr;
 }
 
 void __attribute__((optnone)) crashtest_free(void *ptr)
@@ -48,11 +69,14 @@ void __attribute__((optnone)) crashtest_free(void *ptr)
     if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
+	int custom_heap = crashtest_prepare_heap();
 	if (custom_free) {
 		custom_free(ptr);
-		return;
+	} else {
+		_zend_mm_free(heap, ptr);
 	}
-    _zend_mm_free(heap, ptr);
+	crashtest_restore_heap(custom_heap);
+	return;
 }
 
 void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len)
@@ -60,10 +84,15 @@ void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len)
     if (has_opline(EG(current_execute_data))) {
         lineno = EG(current_execute_data)->opline->lineno;
     }
+	void * newptr;
+	int custom_heap = crashtest_prepare_heap();
 	if (custom_realloc) {
-		return custom_realloc(ptr, len);
+		newptr = custom_realloc(ptr, len);
+	} else {
+		newptr = _zend_mm_realloc(heap, ptr, len);
 	}
-    return _zend_mm_realloc(heap, ptr, len);
+	crashtest_restore_heap(custom_heap);
+	return newptr;
 }
 #pragma GCC pop_options
 
