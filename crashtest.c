@@ -11,13 +11,7 @@
 #include "php_crashtest.h"
 #include "Zend/zend_alloc.h"
 
-volatile uint32_t lineno = 0;
-
-void* (*custom_malloc)(size_t) = NULL;
-void (*custom_free)(void*) =  NULL;
-void* (*custom_realloc)(void *, size_t) = NULL;
-
-zend_mm_heap* heap = NULL;
+ZEND_DECLARE_MODULE_GLOBALS(crashtest)
 
 static bool has_opline(zend_execute_data *execute_data)
 {
@@ -31,18 +25,16 @@ static bool has_opline(zend_execute_data *execute_data)
     ;
 }
 
-int crashtest_prepare_heap()
+int crashtest_prepare_heap(zend_mm_heap *heap)
 {
-	heap = zend_mm_get_heap();
 	int custom_heap;
 	memcpy(&custom_heap, heap, sizeof(int));
 	memset(heap, ZEND_MM_CUSTOM_HEAP_NONE, sizeof(int));
 	return custom_heap;
 }
 
-void crashtest_restore_heap(int custom_heap)
+void crashtest_restore_heap(zend_mm_heap *heap, int custom_heap)
 {
-	heap = zend_mm_get_heap();
 	memset(heap, custom_heap, sizeof(int));
 }
 
@@ -51,47 +43,47 @@ void crashtest_restore_heap(int custom_heap)
 void * __attribute__((optnone)) crashtest_malloc(size_t len)
 {
     if (has_opline(EG(current_execute_data))) {
-        lineno = EG(current_execute_data)->opline->lineno;
+        CT_G(lineno) = EG(current_execute_data)->opline->lineno;
     }
 	void * ptr;
-	int custom_heap = crashtest_prepare_heap();
-	if (custom_malloc) {
-		ptr = custom_malloc(len);
+	int custom_heap = crashtest_prepare_heap(CT_G(heap));
+	if (CT_G(custom_malloc)) {
+		ptr = CT_G(custom_malloc)(len);
 	} else {
-		ptr = _zend_mm_alloc(heap, len);
+		ptr = _zend_mm_alloc(CT_G(heap), len);
 	}
-	crashtest_restore_heap(custom_heap);
+	crashtest_restore_heap(CT_G(heap), custom_heap);
 	return ptr;
 }
 
 void __attribute__((optnone)) crashtest_free(void *ptr)
 {
     if (has_opline(EG(current_execute_data))) {
-        lineno = EG(current_execute_data)->opline->lineno;
+        CT_G(lineno) = EG(current_execute_data)->opline->lineno;
     }
-	int custom_heap = crashtest_prepare_heap();
-	if (custom_free) {
-		custom_free(ptr);
+	int custom_heap = crashtest_prepare_heap(CT_G(heap));
+	if (CT_G(custom_free)) {
+		CT_G(custom_free)(ptr);
 	} else {
-		_zend_mm_free(heap, ptr);
+		_zend_mm_free(CT_G(heap), ptr);
 	}
-	crashtest_restore_heap(custom_heap);
+	crashtest_restore_heap(CT_G(heap), custom_heap);
 	return;
 }
 
 void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len)
 {
     if (has_opline(EG(current_execute_data))) {
-        lineno = EG(current_execute_data)->opline->lineno;
+        CT_G(lineno) = EG(current_execute_data)->opline->lineno;
     }
 	void * newptr;
-	int custom_heap = crashtest_prepare_heap();
-	if (custom_realloc) {
-		newptr = custom_realloc(ptr, len);
+	int custom_heap = crashtest_prepare_heap(CT_G(heap));
+	if (CT_G(custom_realloc)) {
+		newptr = CT_G(custom_realloc)(ptr, len);
 	} else {
-		newptr = _zend_mm_realloc(heap, ptr, len);
+		newptr = _zend_mm_realloc(CT_G(heap), ptr, len);
 	}
-	crashtest_restore_heap(custom_heap);
+	crashtest_restore_heap(CT_G(heap), custom_heap);
 	return newptr;
 }
 #pragma GCC pop_options
@@ -102,17 +94,17 @@ PHP_RINIT_FUNCTION(crashtest)
     ZEND_TSRMLS_CACHE_UPDATE();
 #endif
 
-	heap = zend_mm_get_heap();
-	if (zend_mm_is_custom_heap(heap)) {
+	CT_G(heap) = zend_mm_get_heap();
+	if (zend_mm_is_custom_heap(CT_G(heap))) {
 		zend_mm_get_custom_handlers(
-			heap,
-			&custom_malloc,
-			&custom_free,
-			&custom_realloc
+			CT_G(heap),
+			&CT_G(custom_malloc),
+			&CT_G(custom_free),
+			&CT_G(custom_realloc)
 		);
 	}
 	zend_mm_set_custom_handlers(
-		heap,
+		CT_G(heap),
 		crashtest_malloc,
 		crashtest_free,
 		crashtest_realloc
@@ -124,7 +116,7 @@ PHP_RINIT_FUNCTION(crashtest)
 PHP_RSHUTDOWN_FUNCTION(crashtest)
 {
 	zend_mm_set_custom_handlers(
-		heap,
+		CT_G(heap),
 		NULL,
 		NULL,
 		NULL
@@ -144,7 +136,11 @@ zend_module_entry crashtest_module_entry = {
     PHP_RSHUTDOWN(crashtest),        /* PHP_RSHUTDOWN - Request shutdown */
     NULL,                            /* PHP_MINFO - Module info */
     PHP_CRASHTEST_VERSION,        /* Version */
-    STANDARD_MODULE_PROPERTIES
+  	PHP_MODULE_GLOBALS(crashtest),
+	NULL,
+	NULL,
+	NULL,
+	STANDARD_MODULE_PROPERTIES_EX
 };
 /* }}} */
 
