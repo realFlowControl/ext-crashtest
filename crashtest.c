@@ -40,7 +40,7 @@ void crashtest_restore_heap(zend_mm_heap *heap, int custom_heap)
 
 #pragma GCC push_options
 #pragma GCC optimize("O0")
-void * __attribute__((optnone)) crashtest_malloc(size_t len)
+void * __attribute__((optnone)) crashtest_malloc(size_t len ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC)
 {
     if (has_opline(EG(current_execute_data))) {
         CT_G(lineno) = EG(current_execute_data)->opline->lineno;
@@ -48,30 +48,30 @@ void * __attribute__((optnone)) crashtest_malloc(size_t len)
 	void * ptr;
 	int custom_heap = crashtest_prepare_heap(CT_G(heap));
 	if (CT_G(custom_malloc)) {
-		ptr = CT_G(custom_malloc)(len);
+		ptr = CT_G(custom_malloc)(len ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	} else {
-		ptr = _zend_mm_alloc(CT_G(heap), len);
+		ptr = _zend_mm_alloc(CT_G(heap), len ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	}
 	crashtest_restore_heap(CT_G(heap), custom_heap);
 	return ptr;
 }
 
-void __attribute__((optnone)) crashtest_free(void *ptr)
+void __attribute__((optnone)) crashtest_free(void *ptr ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC)
 {
     if (has_opline(EG(current_execute_data))) {
         CT_G(lineno) = EG(current_execute_data)->opline->lineno;
     }
 	int custom_heap = crashtest_prepare_heap(CT_G(heap));
 	if (CT_G(custom_free)) {
-		CT_G(custom_free)(ptr);
+		CT_G(custom_free)(ptr ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	} else {
-		_zend_mm_free(CT_G(heap), ptr);
+		_zend_mm_free(CT_G(heap), ptr ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	}
 	crashtest_restore_heap(CT_G(heap), custom_heap);
 	return;
 }
 
-void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len)
+void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC)
 {
     if (has_opline(EG(current_execute_data))) {
         CT_G(lineno) = EG(current_execute_data)->opline->lineno;
@@ -79,9 +79,9 @@ void * __attribute__((optnone)) crashtest_realloc(void * ptr, size_t len)
 	void * newptr;
 	int custom_heap = crashtest_prepare_heap(CT_G(heap));
 	if (CT_G(custom_realloc)) {
-		newptr = CT_G(custom_realloc)(ptr, len);
+		newptr = CT_G(custom_realloc)(ptr, len ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	} else {
-		newptr = _zend_mm_realloc(CT_G(heap), ptr, len);
+		newptr = _zend_mm_realloc(CT_G(heap), ptr, len ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	}
 	crashtest_restore_heap(CT_G(heap), custom_heap);
 	return newptr;

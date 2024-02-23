@@ -17,9 +17,9 @@ ZEND_TSRMLS_CACHE_EXTERN()
 # endif
 
 ZEND_BEGIN_MODULE_GLOBALS(crashtest)
-   	void* (*custom_malloc)(size_t);
-	void (*custom_free)(void*);
-	void* (*custom_realloc)(void *, size_t);
+   	void* (*custom_malloc)(size_t ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC);
+	void (*custom_free)(void* ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC);
+	void* (*custom_realloc)(void *, size_t ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC);
     zend_mm_heap* heap;
     int lineno;
 ZEND_END_MODULE_GLOBALS(crashtest)
